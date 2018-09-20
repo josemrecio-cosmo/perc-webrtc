@@ -286,6 +286,51 @@ bool RTPSenderVideo::SendVideo(enum VideoCodecType video_type,
   rtp_header->SetPayloadType(payload_type);
   rtp_header->SetTimestamp(rtp_timestamp);
   rtp_header->set_capture_time_ms(capture_time_ms);
+
+  // Set Frame Marks.
+  FrameMarks frame_marks;
+  bool frame_marking_enabled = true;
+
+  // Common info
+  frame_marks.start_of_frame = true;
+  frame_marks.end_of_frame = false;
+  frame_marks.independent = (frame_type == kVideoFrameKey);
+
+  // Codec specific.
+  switch (video_type) {
+  case kRtpVideoH264:
+    // Nothing to add
+    frame_marks.discardable = false;
+    frame_marks.temporal_layer_id = kNoTemporalIdx;
+    frame_marks.layer_id = kNoSpatialIdx;
+    frame_marks.tl0_pic_idx = static_cast<uint8_t>(kNoTl0PicIdx);
+    break;
+  case kRtpVideoVp8:
+    frame_marks.discardable = video_header->codecHeader.VP8.nonReference;
+    frame_marks.base_layer_sync = video_header->codecHeader.VP8.layerSync;
+    frame_marks.temporal_layer_id = video_header->codecHeader.VP8.temporalIdx;
+    frame_marks.layer_id = kNoSpatialIdx;
+    frame_marks.tl0_pic_idx = video_header->codecHeader.VP8.tl0PicIdx;
+    break;
+  case kRtpVideoVp9:
+    frame_marks.discardable = false;
+    // Layer id format is codec dependant.
+    frame_marks.temporal_layer_id =
+      video_header->codecHeader.VP9.temporal_idx;
+    frame_marks.layer_id =
+      FrameMarking::CreateLayerId(video_header->codecHeader.VP9);
+    frame_marks.tl0_pic_idx = video_header->codecHeader.VP9.tl0_pic_idx;
+    break;
+  default:
+    // Do not use frame marking.
+    frame_marking_enabled = false;
+  }
+
+  if (frame_marking_enabled) {
+    // Reserve space for frame marking extension.
+    rtp_header->SetExtension<FrameMarking>(frame_marks);
+  }
+
   auto last_packet = absl::make_unique<RtpPacketToSend>(*rtp_header);
 
   size_t fec_packet_overhead;
@@ -334,45 +379,6 @@ bool RTPSenderVideo::SendVideo(enum VideoCodecType video_type,
     fec_packet_overhead = CalculateFecPacketOverhead();
     red_enabled = this->red_enabled();
     retransmission_settings = retransmission_settings_;
-  }
-
-  // Set Frame Marks.
-  FrameMarks frame_marks;
-  bool frame_marking_enabled = true;
-
-  // Common info
-  frame_marks.start_of_frame = true;
-  frame_marks.end_of_frame = false;
-  frame_marks.independent = (frame_type == kVideoFrameKey);
-
-  // Codec specific.
-  switch (video_type) {
-    case kRtpVideoH264:
-      // Nothing to add
-      frame_marks.discardable = false;
-      frame_marks.temporal_layer_id = kNoTemporalIdx;
-      frame_marks.layer_id = kNoSpatialIdx;
-      frame_marks.tl0_pic_idx = static_cast<uint8_t>(kNoTl0PicIdx);
-      break;
-    case kRtpVideoVp8:
-      frame_marks.discardable = video_header->codecHeader.VP8.nonReference;
-      frame_marks.base_layer_sync = video_header->codecHeader.VP8.layerSync;
-      frame_marks.temporal_layer_id = video_header->codecHeader.VP8.temporalIdx;
-      frame_marks.layer_id = kNoSpatialIdx;
-      frame_marks.tl0_pic_idx = video_header->codecHeader.VP8.tl0PicIdx;
-      break;
-    case kRtpVideoVp9:
-      frame_marks.discardable = false;
-      // Layer id format is codec dependant.
-      frame_marks.temporal_layer_id =
-          video_header->codecHeader.VP9.temporal_idx;
-      frame_marks.layer_id =
-          FrameMarking::CreateLayerId(video_header->codecHeader.VP9);
-      frame_marks.tl0_pic_idx = video_header->codecHeader.VP9.tl0_pic_idx;
-      break;
-    default:
-      // Do not use frame marking.
-      frame_marking_enabled = false;
   }
 
   size_t packet_capacity = rtp_sender_->MaxRtpPacketSize() -

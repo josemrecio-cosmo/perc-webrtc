@@ -412,11 +412,6 @@ bool RTPSenderVideo::SendVideo(enum VideoCodecType video_type,
     bool last = (i + 1) == num_packets;
     auto packet = last ? std::move(last_packet)
                        : absl::make_unique<RtpPacketToSend>(*rtp_header);
-    if (!packetizer->NextPacket(packet.get()))
-      return false;
-    RTC_DCHECK_LE(packet->payload_size(),
-                  last ? max_data_payload_length - last_packet_reduction_len
-                       : max_data_payload_length);
 
     // Only add frame marking for known codecs.
     if (frame_marking_enabled) {
@@ -427,6 +422,11 @@ bool RTPSenderVideo::SendVideo(enum VideoCodecType video_type,
       packet->SetExtension<FrameMarking>(frame_marks);
     }
 
+    if (!packetizer->NextPacket(packet.get()))
+      return false;
+    RTC_DCHECK_LE(packet->payload_size(),
+                  last ? max_data_payload_length - last_packet_reduction_len
+                       : max_data_payload_length);
     if (!rtp_sender_->AssignSequenceNumber(packet.get()))
       return false;
 

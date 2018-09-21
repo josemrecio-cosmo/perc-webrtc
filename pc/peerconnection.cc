@@ -5599,7 +5599,7 @@ cricket::VideoChannel* PeerConnection::CreateVideoChannel(
     video_channel->SetMetricsObserver(uma_observer_);
   }
   if (media_crypto_) {
-    voice_channel->SetMediaCrypto(media_crypto_);
+    video_channel->SetMediaCrypto(media_crypto_);
   }
 
   return video_channel;

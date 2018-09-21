@@ -275,6 +275,9 @@ class MediaChannel : public sigslot::has_slots<> {
   // of network_interface_ object.
   rtc::CriticalSection network_interface_crit_;
   NetworkInterface* network_interface_;
+
+  // End to end media encription.
+  std::shared_ptr<webrtc::MediaCrypto> media_crypto_;
 };
 
 // The stats information is structured as follows:

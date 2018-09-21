@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "absl/types/optional.h"
+#include "api/mediacrypto.h"
 #include "api/mediatypes.h"
 
 namespace webrtc {

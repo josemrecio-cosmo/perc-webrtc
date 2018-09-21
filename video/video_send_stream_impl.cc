@@ -726,5 +726,14 @@ void VideoSendStreamImpl::OnPacketFeedbackVector(
     }
   }
 }
+
+bool VideoSendStreamImpl::SetMediaCrypto(
+    const std::shared_ptr<webrtc::MediaCrypto>& media_crypto) {
+  bool result = true;
+  for (RtpRtcp* rtp_rtcp : rtp_rtcp_modules_) {
+    result &= rtp_rtcp->SetMediaCrypto(media_crypto);
+  }
+  return result;
+}
 }  // namespace internal
 }  // namespace webrtc

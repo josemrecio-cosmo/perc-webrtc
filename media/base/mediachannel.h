@@ -237,6 +237,16 @@ class MediaChannel : public sigslot::has_slots<> {
     return network_interface_->SetOption(type, opt, option);
   }
 
+  virtual void SetMediaCrypto(
+      const std::shared_ptr<webrtc::MediaCrypto>& media_crypto) {
+    media_crypto_ = media_crypto;
+  }
+
+ protected:
+  const std::shared_ptr<webrtc::MediaCrypto> media_crypto() const {
+    return media_crypto_;
+  }
+
  private:
   // This method sets DSCP |value| on both RTP and RTCP channels.
   int SetDscp(rtc::DiffServCodePoint value) {

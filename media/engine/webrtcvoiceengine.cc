@@ -992,6 +992,12 @@ class WebRtcVoiceMediaChannel::WebRtcAudioSendStream
     bool reconfigure_send_stream =
         (rtp_parameters_.encodings[0].max_bitrate_bps != old_rtp_max_bitrate) ||
         (rtp_parameters_.encodings[0].bitrate_priority != old_priority);
+    // Set E2E media crypto.
+    if (rtp_parameters_.media_crypto) {
+      RTC_LOG(LS_INFO) << "Enabling E2E Media Encryption";
+      SetMediaCrypto(rtp_parameters_.media_crypto);
+    }
+
     if (rtp_parameters_.encodings[0].max_bitrate_bps != old_rtp_max_bitrate) {
       // Update the bitrate range.
       if (send_rate) {
@@ -1009,6 +1015,12 @@ class WebRtcVoiceMediaChannel::WebRtcAudioSendStream
     // parameters.encodings[0].active could have changed.
     UpdateSendState();
     return webrtc::RTCError::OK();
+  }
+
+  bool SetMediaCrypto(
+      const std::shared_ptr<webrtc::MediaCrypto>& media_crypto) {
+    RTC_DCHECK(stream_);
+    return stream_->SetMediaCrypto(media_crypto);
   }
 
  private:
@@ -1252,6 +1264,24 @@ class WebRtcVoiceMediaChannel::WebRtcAudioReceiveStream {
     rtp_parameters.header_extensions = config_.rtp.extensions;
 
     return rtp_parameters;
+  }
+
+  bool SetRtpParameters(const webrtc::RtpParameters& parameters) {
+    // TODO(deadbeef): Update the rest of rtp parameters accordingly
+
+    // Parse E2E media crypto key
+    if (!parameters.media_crypto) {
+      RTC_LOG(LS_INFO) << "Enabling E2E Media Encryption";
+      SetMediaCrypto(parameters.media_crypto);
+    }
+
+    return true;
+  }
+
+  bool SetMediaCrypto(
+      const std::shared_ptr<webrtc::MediaCrypto>& media_crypto) {
+    RTC_DCHECK(stream_);
+    return stream_->SetMediaCrypto(media_crypto);
   }
 
  private:
@@ -1813,6 +1843,10 @@ bool WebRtcVoiceMediaChannel::AddSendStream(const StreamParams& sp) {
       ssrc, mid_, sp.cname, sp.id, send_codec_spec_, send_rtp_extensions_,
       max_send_bitrate_bps_, audio_network_adaptor_config, call_, this,
       engine()->encoder_factory_, codec_pair_id_);
+
+  // End to End Media Encryption
+  stream->SetMediaCrypto(media_crypto());
+
   send_streams_.insert(std::make_pair(ssrc, stream));
 
   // At this point the stream's local SSRC has been updated. If it is the first
@@ -1892,13 +1926,14 @@ bool WebRtcVoiceMediaChannel::AddRecvStream(const StreamParams& sp) {
   }
 
   // Create a new channel for receiving audio data.
-  recv_streams_.insert(std::make_pair(
-      ssrc, new WebRtcAudioReceiveStream(
+  WebRtcAudioReceiveStream* stream = new WebRtcAudioReceiveStream(
                 ssrc, receiver_reports_ssrc_, recv_transport_cc_enabled_,
                 recv_nack_enabled_, sp.stream_ids(), recv_rtp_extensions_,
                 call_, this, engine()->decoder_factory_, decoder_map_,
                 codec_pair_id_, engine()->audio_jitter_buffer_max_packets_,
-                engine()->audio_jitter_buffer_fast_accelerate_)));
+                engine()->audio_jitter_buffer_fast_accelerate_);
+  stream->SetMediaCrypto(media_crypto());
+  recv_streams_.insert(std::make_pair(ssrc, stream));
   recv_streams_[ssrc]->SetPlayout(playout_);
 
   return true;
